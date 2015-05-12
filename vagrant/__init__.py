@@ -131,6 +131,7 @@ Plugin = collections.namedtuple('Plugin', ['name', 'version', 'system'])
 
 
 class Vagrant(object):
+
     '''
     Object to up (launch) and destroy (terminate) vagrant virtual machines,
     to check the status of the machine and to report on the configuration
@@ -143,12 +144,13 @@ class Vagrant(object):
     NOT_CREATED = 'not created'  # vagrant destroy
     POWEROFF = 'poweroff'  # vagrant halt
     ABORTED = 'aborted'  # The VM is in an aborted state
-    SAVED = 'saved' # vagrant suspend
+    SAVED = 'saved'  # vagrant suspend
     # LXC statuses
     STOPPED = 'stopped'
     FROZEN = 'frozen'
 
-    STATUSES = (RUNNING, NOT_CREATED, POWEROFF, ABORTED, SAVED, STOPPED, FROZEN)
+    STATUSES = (
+        RUNNING, NOT_CREATED, POWEROFF, ABORTED, SAVED, STOPPED, FROZEN)
 
     BASE_BOXES = {
         'ubuntu-Lucid32': 'http://files.vagrantup.com/lucid32.box',
@@ -158,7 +160,7 @@ class Vagrant(object):
         'ubuntu-precise64': 'http://files.vagrantup.com/precise64.box',
     }
 
-    def __init__(self, root=None, quiet_stdout=True, quiet_stderr=True):
+    def __init__(self, root=None, quiet_stdout=True, quiet_stderr=True, stdout=sys.stdout, stderr=sys.stderr):
         '''
         root: a directory containing a file named Vagrantfile.  Defaults to
         os.getcwd(). This is the directory and Vagrantfile that the Vagrant
@@ -170,9 +172,11 @@ class Vagrant(object):
         '''
         self.root = os.path.abspath(root) if root is not None else os.getcwd()
         self._cached_conf = {}
-        self._vagrant_exe = None # cache vagrant executable path
+        self._vagrant_exe = None  # cache vagrant executable path
         self.quiet_stdout = quiet_stdout
         self.quiet_stderr = quiet_stderr
+        self.stdout = stdout
+        self.stderr = stderr
 
     def version(self):
         '''
@@ -181,7 +185,8 @@ class Vagrant(object):
         output = self._run_vagrant_command(['--version'])
         m = re.search(r'^Vagrant (?P<version>.+)$', output)
         if m is None:
-            raise Exception('Failed to parse vagrant --version output. output={!r}'.format(output))
+            raise Exception(
+                'Failed to parse vagrant --version output. output={!r}'.format(output))
         return m.group('version')
 
     def init(self, box_name=None, box_url=None):
@@ -214,7 +219,8 @@ class Vagrant(object):
         '''
         provider_arg = '--provider=%s' % provider if provider else None
         prov_with_arg = None if provision_with is None else '--provision-with'
-        providers_arg = None if provision_with is None else ','.join(provision_with)
+        providers_arg = None if provision_with is None else ','.join(
+            provision_with)
 
         # For the sake of backward compatibility, no_provision is allowed.
         # However it is ignored if provision is set.
@@ -224,8 +230,8 @@ class Vagrant(object):
         provision_arg = None if provision is None else '--provision' if provision else '--no-provision'
 
         self._call_vagrant_command(['up', vm_name, no_provision_arg,
-                                   provision_arg, provider_arg,
-                                   prov_with_arg, providers_arg])
+                                    provision_arg, provider_arg,
+                                    prov_with_arg, providers_arg])
         try:
             self.conf(vm_name=vm_name)  # cache configuration
         except subprocess.CalledProcessError:
@@ -241,9 +247,10 @@ class Vagrant(object):
           e.g. ['shell', 'chef_solo']
         '''
         prov_with_arg = None if provision_with is None else '--provision-with'
-        providers_arg = None if provision_with is None else ','.join(provision_with)
+        providers_arg = None if provision_with is None else ','.join(
+            provision_with)
         self._call_vagrant_command(['provision', vm_name, prov_with_arg,
-                                   providers_arg])
+                                    providers_arg])
 
     def reload(self, vm_name=None, provision=None, provision_with=None):
         '''
@@ -260,10 +267,11 @@ class Vagrant(object):
           e.g. ['shell', 'chef_solo']
         '''
         prov_with_arg = None if provision_with is None else '--provision-with'
-        providers_arg = None if provision_with is None else ','.join(provision_with)
+        providers_arg = None if provision_with is None else ','.join(
+            provision_with)
         provision_arg = None if provision is None else '--provision' if provision else '--no-provision'
         self._call_vagrant_command(['reload', vm_name, provision_arg,
-                                   prov_with_arg, providers_arg])
+                                    prov_with_arg, providers_arg])
 
     def suspend(self, vm_name=None):
         '''
@@ -376,13 +384,14 @@ class Vagrant(object):
         # Vagrant 1.5), this constraint can be lifted.
         START_LINE, FIRST_BLANK, VM_STATUS = 1, 2, 3
         statuses = []
-        parse_state = START_LINE # looking for for the 'Current ... states' line
+        # looking for for the 'Current ... states' line
+        parse_state = START_LINE
         for line in output.splitlines():
             line = line.strip()
             if parse_state == START_LINE and re.search('^Current (VM|machine) states:', line):
-                parse_state = FIRST_BLANK # looking for the first blank line
+                parse_state = FIRST_BLANK  # looking for the first blank line
             elif parse_state == FIRST_BLANK and not line:
-                parse_state = VM_STATUS # looking for machine status lines
+                parse_state = VM_STATUS  # looking for machine status lines
             elif parse_state == VM_STATUS and line:
                 vm_name_and_state, provider = self._parse_provider_line(line)
                 # Split vm_name from status.  Only works for recognized states.
@@ -393,7 +402,8 @@ class Vagrant(object):
                     raise Exception('ParseError: Failed to properly parse vm name and status from line.',
                                     line, output)
                 else:
-                    status = Status(m.group('vm_name'), m.group('state'), provider)
+                    status = Status(
+                        m.group('vm_name'), m.group('state'), provider)
                     statuses.append(status)
             elif parse_state == VM_STATUS and not line:
                 # Found the second blank line.  All done.
@@ -569,7 +579,8 @@ class Vagrant(object):
         boxes = []
         for line in output.splitlines():
             name, provider = self._parse_provider_line(line)
-            box = Box(name, provider, version=None) # not currently parsing the box version
+            # not currently parsing the box version
+            box = Box(name, provider, version=None)
             boxes.append(box)
         return boxes
 
@@ -607,7 +618,8 @@ class Vagrant(object):
         # Example plugin listing lines:
         # sahara (0.0.16)
         # vagrant-login (1.0.1, system)
-        regex = re.compile(r'^(?P<name>.+?)\s+\((?P<version>.+?)(?P<system>, system)?\)$')
+        regex = re.compile(
+            r'^(?P<name>.+?)\s+\((?P<version>.+?)(?P<system>, system)?\)$')
         m = regex.search(line)
         if m is None:
             raise Exception('Error parsing plugin listing line.', line)
@@ -637,7 +649,7 @@ class Vagrant(object):
             ('default                  not created', 'virtualbox')
         '''
         m = re.search(r'^\s*(?P<value>.+?)\s+\((?P<provider>[^)]+)\)\s*$',
-                          line)
+                      line)
         if m:
             return m.group('value'), m.group('provider')
         else:
@@ -702,12 +714,19 @@ class Vagrant(object):
             # Redirect stdout and/or stderr to devnull
             # Use with stmt to close filehandle in case of exception
             with open(os.devnull, 'wb') as fh:
-                outfh = fh if self.quiet_stdout else sys.stdout
-                errfh = fh if self.quiet_stderr else sys.stderr
-                subprocess.check_call(command, cwd=self.root,
-                                      stdout=outfh, stderr=errfh)
+                outfh = fh if self.quiet_stdout else self.stdout.setStream(
+                    p.stdout)
+                errfh = fh if self.quiet_stderr else self.stderr.setStream(
+                    p.stderr)
+                p = subprocess.Popen(command, cwd=self.root,
+                                     stdout=outfh, stderr=errfh)
         else:
-            subprocess.check_call(command, cwd=self.root)
+            p = subprocess.Popen(
+                command, cwd=self.root, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            self.stdout.setStream(p.stdout)
+            self.stderr.setStream(p.stderr)
+            self.stdout.startCollecting()
+            self.stderr.startCollecting()
 
     def _run_vagrant_command(self, args):
         '''
@@ -722,6 +741,7 @@ class Vagrant(object):
 
 
 class SandboxVagrant(Vagrant):
+
     '''
     Support for sandbox mode using the Sahara gem (https://github.com/jedi4ever/sahara).
     '''
